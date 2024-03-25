@@ -4,16 +4,15 @@ global
 defaults
     # defaults here
 
-{{ range . }}
+{{ range .Ports }}
+#
+{{ $NodePort :=  .NodePort}}
+frontend f_{{ $.Namespace }}_{{ $.Name }}_{{ .Port }}
+    bind {{ $.Ip }}:{{ .Port }}
+    default_backend b_{{ $.Namespace }}_{{ $.Name }}_{{ .Port }}
 
-frontend f_{{ .Namespace }}_{{ .Name }}
-    # a frontend that accepts requests from clients
-    bind {{ .Address }}:{{ .Port }}
-    default_backend b_{{ .Namespace }}_{{ .Name }}
-
-backend b_{{ .Namespace }}_{{ .Name }}
-    # servers that fulfill the requests
-    balance roundrobin
-    server {{ .Name }}_{{ .AddressS }}_{{ .PortS }} {{ .AddressS }}:{{ .PortS }} 
-
-{{ end }}
+backend b_{{ $.Namespace }}_{{ $.Name }}_{{ .Port }}
+    {{- range  $value := $.Nodes }}
+    server {{  $value.Name }} {{  $value.Private_ip }}:{{ $NodePort }} check 
+    {{- end }}
+{{ end}}
