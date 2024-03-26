@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/goryszewski/libvirtApi-client/libvirtApiClient"
@@ -29,23 +28,12 @@ func main() {
 			fmt.Printf("ERROR:[GetAllLoadBalancers]:[%+v]", err)
 		}
 
-		// docker.Create("test")
-		docker.Start("test")
-
-		all_containers, err := docker.GetContainersByLabels("haproxy")
-		fmt.Println(all_containers)
-		for _, item := range all_containers {
-			fmt.Println(item.ID)
-			// docker.Delete(item.ID)
-
-		}
-		if err != nil {
-			fmt.Printf("ERROR:[GetAllContainers]:[%+v]", err)
-		}
-
 		fmt.Println("Start loop")
 
-		exist_LoadBalancer := []libvirtApiClient.ServiceLoadBalancerResponse{}
+		exist_LoadBalancer, err := docker.GetContainersByLabels("haproxy")
+		if err != nil {
+			fmt.Printf("ERROR:[GetContainersByLabels]:[%+v]", err)
+		}
 
 		lb_to_add := compare(all_loadbalancer, exist_LoadBalancer)
 
@@ -54,16 +42,20 @@ func main() {
 		fmt.Printf("DO TO ADD: %v \n", len(lb_to_add))
 
 		for _, lb := range lb_to_add {
+			fmt.Println(lb)
 			operator.createHaproxyConfig(lb)
+			docker.CreateAndStart(lb)
 		}
+
 		fmt.Printf("DO TO Delete: %v \n", len(lb_to_delete))
 		for _, lb := range lb_to_delete {
 			operator.deleteHaproxyConfig(lb)
+			docker.Delete(lb)
 		}
 
 		fmt.Println("End loop")
-		os.Exit(0)
-		time.Sleep(time.Second * 10)
+
+		time.Sleep(time.Second * 2)
 	}
 
 }

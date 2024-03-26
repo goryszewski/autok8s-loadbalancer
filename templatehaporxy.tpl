@@ -8,7 +8,7 @@ defaults
 #
 {{ $NodePort :=  .NodePort}}
 frontend f_{{ $.Namespace }}_{{ $.Name }}_{{ .Port }}
-    bind {{ $.Ip }}:{{ .Port }}
+    bind 0.0.0.0:{{ .Port }}
     default_backend b_{{ $.Namespace }}_{{ $.Name }}_{{ .Port }}
 
 backend b_{{ $.Namespace }}_{{ $.Name }}_{{ .Port }}

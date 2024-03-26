@@ -7,7 +7,7 @@ func compare(arr1 []libvirtApiClient.ServiceLoadBalancerResponse, arr2 []libvirt
 	for _, lb1 := range arr1 {
 		test := false
 		for _, lb2 := range arr2 {
-			if lb1.Namespace == lb2.Namespace {
+			if lb1.Namespace == lb2.Namespace && lb1.Name == lb2.Name {
 				test = true
 				break
 			}

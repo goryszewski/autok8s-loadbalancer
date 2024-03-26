@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+
+	"github.com/goryszewski/libvirtApi-client/libvirtApiClient"
 )
 
 type Dorequester interface {
@@ -28,10 +30,21 @@ type DockerResponse struct {
 	Labels map[string]string `json"labels"`
 	Image  string            `json"image"`
 }
+type host_bind struct {
+	HostPort string
+	HostIp   string
+}
+
+type HostConfig struct {
+	Binds        []string `json"Binds"`
+	PortBindings map[string][]host_bind
+}
 
 type DockerRequest struct {
-	Image  string            `json"image"`
-	Labels map[string]string `json"labels"`
+	Image        string              `json"image"`
+	Labels       map[string]string   `json"labels"`
+	ExposedPorts map[string]struct{} `json"ExposedPorts"`
+	HostConfig   HostConfig          `json"HostConfig"`
 }
 
 type Docker struct {
@@ -43,10 +56,46 @@ type Container struct {
 	id   string
 }
 
-func (d *Docker) Create(name string) error {
-	url := "http://127.0.0.1:5555"
+func (d *Docker) CreateAndStart(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse) error {
+	err := d.Create(loadbalancer)
+	if err != nil {
+		return err
+	}
 
-	payload := DockerRequest{Image: "nginx", Labels: map[string]string{"haproxy": "123"}}
+	err = d.Start(loadbalancer)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *Docker) Create(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse) error {
+	url := "http://127.0.0.1:5555" // TODO load from config file
+	file_name := "/tmp/" + loadbalancer.Name + "_" + loadbalancer.Namespace + "_" + "haproxy.cnf"
+	name := loadbalancer.Namespace + "_" + loadbalancer.Name
+
+	prep_ExposedPorts := make(map[string]struct{})
+	prep_PortBindings := make(map[string][]host_bind)
+	for _, port := range loadbalancer.Ports {
+		fmt.Printf("%v/%v \n", port.Port, port.Protocol)
+		prep_ExposedPorts[fmt.Sprintf("%v/%v", port.Port, port.Protocol)] = struct{}{}
+		prep_PortBindings[fmt.Sprintf("%v/%v", port.Port, port.Protocol)] = append([]host_bind{}, host_bind{HostIp: loadbalancer.Ip, HostPort: fmt.Sprintf("%v", port.Port)})
+
+	}
+	HostConfig := HostConfig{Binds: []string{file_name + ":/usr/local/etc/haproxy/haproxy.cfg"}, PortBindings: prep_PortBindings}
+
+	payload := DockerRequest{
+		Image: "haproxy",
+		Labels: map[string]string{
+			"haproxy":   "lb",
+			"name":      loadbalancer.Name,
+			"namespace": loadbalancer.Namespace,
+			"ip":        loadbalancer.Ip},
+		ExposedPorts: prep_ExposedPorts,
+		HostConfig:   HostConfig,
+	}
+	fmt.Printf("%+v \n", payload)
 	requestBody, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -70,8 +119,10 @@ func (d *Docker) Create(name string) error {
 	return nil
 
 }
-func (d *Docker) Start(name string) error {
+func (d *Docker) Start(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse) error {
+	name := loadbalancer.Namespace + "_" + loadbalancer.Name
 	url := "http://127.0.0.1:5555"
+
 	request1, err := http.NewRequest("POST", fmt.Sprintf("%v/containers/%v/start", url, name), nil)
 	if err != nil {
 		return err
@@ -86,9 +137,10 @@ func (d *Docker) Start(name string) error {
 	defer response2.Body.Close()
 	return nil
 }
-func (d *Docker) Delete(id string) error {
+func (d *Docker) Delete(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse) error {
 	url := "http://127.0.0.1:5555"
-	request, err := http.NewRequest("DELETE", fmt.Sprintf("%v/containers/%v?force=true", url, id), nil)
+	name := loadbalancer.Namespace + "_" + loadbalancer.Name
+	request, err := http.NewRequest("DELETE", fmt.Sprintf("%v/containers/%v?force=true", url, name), nil)
 	if err != nil {
 		return err
 	}
@@ -104,7 +156,7 @@ func (d *Docker) Delete(id string) error {
 
 }
 
-func (d *Docker) GetContainersByLabels(label string) ([]DockerResponse, error) {
+func (d *Docker) GetContainersByLabels(label string) ([]libvirtApiClient.ServiceLoadBalancerResponse, error) {
 
 	// build request
 	url := "http://127.0.0.1:5555"
@@ -124,12 +176,21 @@ func (d *Docker) GetContainersByLabels(label string) ([]DockerResponse, error) {
 		return nil, err
 	}
 
-	docker_response := []DockerResponse{}
+	docker_response := []DockerRequest{}
 
 	err = json.Unmarshal(body, &docker_response)
 	if err != nil {
 		fmt.Println(err)
 	}
-
-	return docker_response, nil
+	var output []libvirtApiClient.ServiceLoadBalancerResponse // TODO refactor type struct
+	for _, item := range docker_response {
+		ServiceLoadBalancer1 := libvirtApiClient.ServiceLoadBalancer{Name: item.Labels["name"], Namespace: item.Labels["namespace"]}
+		tmp := libvirtApiClient.ServiceLoadBalancerResponse{ID: "2", Ip: item.Labels["Ip"], ServiceLoadBalancer: &ServiceLoadBalancer1}
+		tmp.ServiceLoadBalancer.Name = item.Labels["name"]
+		tmp.ServiceLoadBalancer.Namespace = item.Labels["namespace"]
+		// tmp.Namespace = item.Labels["namespace"]
+		output = append(output, tmp)
+	}
+	fmt.Println(output)
+	return output, nil
 }
