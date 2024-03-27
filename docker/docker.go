@@ -1,4 +1,4 @@
-package main
+package docker
 
 import (
 	"bytes"
@@ -6,58 +6,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 
 	"github.com/goryszewski/libvirtApi-client/libvirtApiClient"
 )
 
-type Dorequester interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
-type Bind struct {
-	Type        string `json"type"`        //: "bind",
-	Source      string `json"source"`      //: "/home/michal/git/libvirtApi/seeder/init.sql",
-	Destination string `json"destination"` //: "/docker-entrypoint-initdb.d/init.sql",
-	Mode        string `json"mode"`        //: "rw",
-	RW          bool   `json"rw"`
-	Propagation string `json"propagation"`
-}
-
-type DockerResponse struct {
-	Names []string `json:"names"`
-	ID    string   `json:"id"`
-	// Mount  []Bind            `json:"mounts"`
-	Labels map[string]string `json"labels"`
-	Image  string            `json"image"`
-}
-type host_bind struct {
-	HostPort string
-	HostIp   string
-}
-
-type HostConfig struct {
-	Binds        []string `json"Binds"`
-	PortBindings map[string][]host_bind
-}
-
-type DockerRequest struct {
-	Image        string              `json"image"`
-	Labels       map[string]string   `json"labels"`
-	ExposedPorts map[string]struct{} `json"ExposedPorts"`
-	HostConfig   HostConfig          `json"HostConfig"`
-}
-
-type Docker struct {
-	client Dorequester
-}
-
-type Container struct {
-	name string
-	id   string
-}
-
-func (d *Docker) CreateAndStart(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse) error {
-	err := d.Create(loadbalancer)
+func (d *Docker) CreateAndStart(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse, bind string) error {
+	err := d.Create(loadbalancer, bind)
 	if err != nil {
 		return err
 	}
@@ -69,21 +24,19 @@ func (d *Docker) CreateAndStart(loadbalancer libvirtApiClient.ServiceLoadBalance
 
 	return nil
 }
+func (d *Docker) Create(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse, bind string) error {
 
-func (d *Docker) Create(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse) error {
-	url := "http://127.0.0.1:5555" // TODO load from config file
-	file_name := "/tmp/" + loadbalancer.Name + "_" + loadbalancer.Namespace + "_" + "haproxy.cnf"
 	name := loadbalancer.Namespace + "_" + loadbalancer.Name
 
 	prep_ExposedPorts := make(map[string]struct{})
 	prep_PortBindings := make(map[string][]host_bind)
 	for _, port := range loadbalancer.Ports {
-		fmt.Printf("%v/%v \n", port.Port, port.Protocol)
+
 		prep_ExposedPorts[fmt.Sprintf("%v/%v", port.Port, port.Protocol)] = struct{}{}
 		prep_PortBindings[fmt.Sprintf("%v/%v", port.Port, port.Protocol)] = append([]host_bind{}, host_bind{HostIp: loadbalancer.Ip, HostPort: fmt.Sprintf("%v", port.Port)})
 
 	}
-	HostConfig := HostConfig{Binds: []string{file_name + ":/usr/local/etc/haproxy/haproxy.cfg"}, PortBindings: prep_PortBindings}
+	HostConfig := HostConfig{Binds: []string{bind + ":/usr/local/etc/haproxy/haproxy.cfg"}, PortBindings: prep_PortBindings}
 
 	payload := DockerRequest{
 		Image: "haproxy",
@@ -95,13 +48,13 @@ func (d *Docker) Create(loadbalancer libvirtApiClient.ServiceLoadBalancerRespons
 		ExposedPorts: prep_ExposedPorts,
 		HostConfig:   HostConfig,
 	}
-	fmt.Printf("%+v \n", payload)
+
 	requestBody, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 
-	request, err := http.NewRequest("POST", fmt.Sprintf("%v/containers/create?name=%v", url, name), bytes.NewBuffer(requestBody))
+	request, err := http.NewRequest("POST", fmt.Sprintf("%v/containers/create?name=%v", d.URL, name), bytes.NewBuffer(requestBody))
 	if err != nil {
 		return err
 	}
@@ -117,7 +70,6 @@ func (d *Docker) Create(loadbalancer libvirtApiClient.ServiceLoadBalancerRespons
 	defer response.Body.Close()
 
 	return nil
-
 }
 func (d *Docker) Start(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse) error {
 	name := loadbalancer.Namespace + "_" + loadbalancer.Name
@@ -138,9 +90,9 @@ func (d *Docker) Start(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse
 	return nil
 }
 func (d *Docker) Delete(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse) error {
-	url := "http://127.0.0.1:5555"
+
 	name := loadbalancer.Namespace + "_" + loadbalancer.Name
-	request, err := http.NewRequest("DELETE", fmt.Sprintf("%v/containers/%v?force=true", url, name), nil)
+	request, err := http.NewRequest("DELETE", fmt.Sprintf("%v/containers/%v?force=true", d.URL, name), nil)
 	if err != nil {
 		return err
 	}
@@ -153,18 +105,19 @@ func (d *Docker) Delete(loadbalancer libvirtApiClient.ServiceLoadBalancerRespons
 	defer response.Body.Close()
 
 	return nil
-
 }
-
 func (d *Docker) GetContainersByLabels(label string) ([]libvirtApiClient.ServiceLoadBalancerResponse, error) {
 
-	// build request
-	url := "http://127.0.0.1:5555"
-	filter := "%7B%22label%22%3A%5B%22" + label + "%22%5D%7D"
-	request, err := http.NewRequest("GET", fmt.Sprintf("%v/containers/json?filters=%v", url, filter), nil)
+	request, err := http.NewRequest("GET", fmt.Sprintf("%v/containers/json", d.URL), nil)
 	if err != nil {
 		fmt.Println(err)
 	}
+
+	params := url.Values{}
+	params.Add("filters", fmt.Sprintf(`{"label":["%v"]}`, label))
+
+	request.URL.RawQuery = params.Encode()
+
 	response, err := d.client.Do(request)
 	if err != nil {
 		fmt.Println(err)
@@ -188,9 +141,8 @@ func (d *Docker) GetContainersByLabels(label string) ([]libvirtApiClient.Service
 		tmp := libvirtApiClient.ServiceLoadBalancerResponse{ID: "2", Ip: item.Labels["Ip"], ServiceLoadBalancer: &ServiceLoadBalancer1}
 		tmp.ServiceLoadBalancer.Name = item.Labels["name"]
 		tmp.ServiceLoadBalancer.Namespace = item.Labels["namespace"]
-		// tmp.Namespace = item.Labels["namespace"]
+		tmp.Ip = item.Labels["ip"]
 		output = append(output, tmp)
 	}
-	fmt.Println(output)
 	return output, nil
 }
