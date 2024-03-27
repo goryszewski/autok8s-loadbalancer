@@ -11,5 +11,5 @@ FROM alpine:3.6
 WORKDIR /app
 
 COPY --from=builder /app/loadbalancer-external /app/loadbalancer-external
-
+COPY --from=builder /app/haproxy.tpl /app/haproxy.tpl
 CMD ["./loadbalancer-external"]
