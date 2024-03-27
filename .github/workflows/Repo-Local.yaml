@@ -27,7 +27,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: repo.internal:5000/loadbalancer-external:${{ steps.date.outputs.date }} repo.internal:5000/loadbalancer-external:latest
+          tags: |
+            repo.internal:5000/loadbalancer-external:${{ steps.date.outputs.date }} 
+            repo.internal:5000/loadbalancer-external:latest
       - name: Inspect
         run: |
           docker buildx imagetools inspect repo.internal:5000/loadbalancer-external:latest
