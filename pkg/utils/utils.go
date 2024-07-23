@@ -29,8 +29,8 @@ func Del(ip string) error {
 	return err
 }
 
-func Compare(arr1 []libvirtApiClient.ServiceLoadBalancerResponse, arr2 []libvirtApiClient.ServiceLoadBalancerResponse) []libvirtApiClient.ServiceLoadBalancerResponse {
-	var diff []libvirtApiClient.ServiceLoadBalancerResponse
+func Compare(arr1 []libvirtApiClient.LoadBalancer, arr2 []libvirtApiClient.LoadBalancer) []libvirtApiClient.LoadBalancer {
+	var diff []libvirtApiClient.LoadBalancer
 	for _, lb1 := range arr1 {
 		test := false
 		for _, lb2 := range arr2 {

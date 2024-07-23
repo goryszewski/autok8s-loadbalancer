@@ -7,7 +7,7 @@ import (
 	"github.com/goryszewski/libvirtApi-client/libvirtApiClient"
 )
 
-func (c *Haproxy) CreateHaproxyConfig(svc_lb libvirtApiClient.ServiceLoadBalancerResponse) (string, error) {
+func (c *Haproxy) CreateHaproxyConfig(svc_lb libvirtApiClient.LoadBalancer) (string, error) {
 
 	file_name := c.Path + "/" + svc_lb.Name + "_" + svc_lb.Namespace + "_" + "haproxy.cnf"
 
@@ -34,7 +34,7 @@ func (c *Haproxy) CreateHaproxyConfig(svc_lb libvirtApiClient.ServiceLoadBalance
 	return file_name, nil
 }
 
-func (c *Haproxy) DeleteHaproxyConfig(svc_lb libvirtApiClient.ServiceLoadBalancerResponse) error {
+func (c *Haproxy) DeleteHaproxyConfig(svc_lb libvirtApiClient.LoadBalancer) error {
 	file_name := c.Path + "/" + svc_lb.Namespace + "_" + svc_lb.Name + "_" + "haproxy.cnf"
 
 	err := os.Remove(file_name)

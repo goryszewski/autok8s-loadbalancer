@@ -11,7 +11,7 @@ import (
 	"github.com/goryszewski/libvirtApi-client/libvirtApiClient"
 )
 
-func (d *Docker) CreateAndStart(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse, bind string) error {
+func (d *Docker) CreateAndStart(loadbalancer libvirtApiClient.LoadBalancer, bind string) error {
 	err := d.Create(loadbalancer, bind)
 	if err != nil {
 		return err
@@ -24,7 +24,7 @@ func (d *Docker) CreateAndStart(loadbalancer libvirtApiClient.ServiceLoadBalance
 
 	return nil
 }
-func (d *Docker) Create(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse, bind string) error {
+func (d *Docker) Create(loadbalancer libvirtApiClient.LoadBalancer, bind string) error {
 
 	name := loadbalancer.Namespace + "_" + loadbalancer.Name
 
@@ -71,7 +71,7 @@ func (d *Docker) Create(loadbalancer libvirtApiClient.ServiceLoadBalancerRespons
 
 	return nil
 }
-func (d *Docker) Start(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse) error {
+func (d *Docker) Start(loadbalancer libvirtApiClient.LoadBalancer) error {
 	name := loadbalancer.Namespace + "_" + loadbalancer.Name
 	url := "http://127.0.0.1:5555"
 
@@ -89,7 +89,7 @@ func (d *Docker) Start(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse
 	defer response2.Body.Close()
 	return nil
 }
-func (d *Docker) Delete(loadbalancer libvirtApiClient.ServiceLoadBalancerResponse) error {
+func (d *Docker) Delete(loadbalancer libvirtApiClient.LoadBalancer) error {
 
 	name := loadbalancer.Namespace + "_" + loadbalancer.Name
 	request, err := http.NewRequest("DELETE", fmt.Sprintf("%v/containers/%v?force=true", d.URL, name), nil)
@@ -106,7 +106,7 @@ func (d *Docker) Delete(loadbalancer libvirtApiClient.ServiceLoadBalancerRespons
 
 	return nil
 }
-func (d *Docker) GetContainersByLabels(label string) ([]libvirtApiClient.ServiceLoadBalancerResponse, error) {
+func (d *Docker) GetContainersByLabels(label string) ([]libvirtApiClient.LoadBalancer, error) {
 
 	request, err := http.NewRequest("GET", fmt.Sprintf("%v/containers/json", d.URL), nil)
 	if err != nil {
@@ -120,7 +120,7 @@ func (d *Docker) GetContainersByLabels(label string) ([]libvirtApiClient.Service
 
 	response, err := d.client.Do(request)
 	if err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
 	defer response.Body.Close()
 
@@ -135,14 +135,9 @@ func (d *Docker) GetContainersByLabels(label string) ([]libvirtApiClient.Service
 	if err != nil {
 		fmt.Println(err)
 	}
-	var output []libvirtApiClient.ServiceLoadBalancerResponse // TODO refactor type struct
+	var output []libvirtApiClient.LoadBalancer // TODO refactor type struct
 	for _, item := range docker_response {
-		ServiceLoadBalancer1 := libvirtApiClient.ServiceLoadBalancer{Name: item.Labels["name"], Namespace: item.Labels["namespace"]}
-		tmp := libvirtApiClient.ServiceLoadBalancerResponse{ID: "2", Ip: item.Labels["Ip"], ServiceLoadBalancer: &ServiceLoadBalancer1}
-		tmp.ServiceLoadBalancer.Name = item.Labels["name"]
-		tmp.ServiceLoadBalancer.Namespace = item.Labels["namespace"]
-		tmp.Ip = item.Labels["ip"]
-		output = append(output, tmp)
+		output = append(output, libvirtApiClient.LoadBalancer{Name: item.Labels["name"], Namespace: item.Labels["namespace"], Ip: item.Labels["Ip"]})
 	}
 	return output, nil
 }

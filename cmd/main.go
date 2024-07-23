@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/goryszewski/autok8s-loadbalancer/docker"
-	"github.com/goryszewski/autok8s-loadbalancer/haproxy"
-	"github.com/goryszewski/autok8s-loadbalancer/utils"
+	"github.com/goryszewski/autok8s-loadbalancer/pkg/docker"
+	"github.com/goryszewski/autok8s-loadbalancer/pkg/haproxy"
+	"github.com/goryszewski/autok8s-loadbalancer/pkg/utils"
 	"github.com/goryszewski/libvirtApi-client/libvirtApiClient"
 )
 
@@ -40,28 +40,34 @@ func main() {
 		panic(fmt.Sprintf("Problem with Unmarshal config file: %v \n", err))
 	}
 
-	fmt.Printf("%+v", config)
+	fmt.Printf("[DEBUG] %+v\n", config)
 
 	conf := libvirtApiClient.Config{Username: config.API.User, Password: config.API.Pass, Url: config.API.URL}
 	cc, err := libvirtApiClient.NewClient(conf, &http.Client{Timeout: 10 * time.Second})
+	if err != nil {
+		panic(fmt.Sprintf("Problem with Client libvirtApi: %v \n", err))
+	}
+
 	haproxyOperator := haproxy.NewHaproxyrOperator(config.Haproxy.Path)
+
 	docker := docker.NewDockerOperator(config.Docker.URL)
 
 	if err != nil {
-		fmt.Printf("ERROR:[NewClient][%+v]", err)
+		panic(fmt.Sprintf("ERROR:[NewClient][%+v]", err))
 	}
 
-	for true {
+	for {
+
 		all_loadbalancer, err := cc.GetAllLoadBalancers()
 		if err != nil {
 			fmt.Printf("ERROR:[GetAllLoadBalancers]:[%+v]", err)
 		}
 
-		fmt.Println("Start loop")
-
 		exist_LoadBalancer, err := docker.GetContainersByLabels("haproxy")
 		if err != nil {
-			fmt.Printf("ERROR:[GetContainersByLabels]:[%+v]", err)
+			fmt.Printf("ERROR:[GetContainersByLabels]:[%+v]\n", err)
+			time.Sleep(time.Second * 10)
+			continue
 		}
 
 		lb_to_add := utils.Compare(all_loadbalancer, exist_LoadBalancer)
@@ -84,6 +90,7 @@ func main() {
 		}
 
 		fmt.Printf("DO TO Delete: %v \n", len(lb_to_delete))
+
 		for _, lb := range lb_to_delete {
 			haproxyOperator.DeleteHaproxyConfig(lb)
 			docker.Delete(lb)
