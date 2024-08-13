@@ -2,3 +2,5 @@ github.com/goryszewski/libvirtApi-client v0.0.0-20240327193413-f2057dc14678 h1:C
 github.com/goryszewski/libvirtApi-client v0.0.0-20240327193413-f2057dc14678/go.mod h1:Z2Ax/DoljpOA3fAY62ptRoBegFA2WfUD0JtFSOAKOHI=
 github.com/goryszewski/libvirtApi-client v0.0.0-20240707100228-c0479cd881a6 h1:1Mw54S6RtanfyltUurb9NDrUpzGHgsu6sMxYDnOJaxU=
 github.com/goryszewski/libvirtApi-client v0.0.0-20240707100228-c0479cd881a6/go.mod h1:Z2Ax/DoljpOA3fAY62ptRoBegFA2WfUD0JtFSOAKOHI=
+github.com/goryszewski/libvirtApi-client v0.0.0-20240801201054-6087d6384f31 h1:351za5V41Gt+hfbVrNrWloe6NEXuM4XeFbobySarCao=
+github.com/goryszewski/libvirtApi-client v0.0.0-20240801201054-6087d6384f31/go.mod h1:Z2Ax/DoljpOA3fAY62ptRoBegFA2WfUD0JtFSOAKOHI=

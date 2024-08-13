@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -28,6 +29,17 @@ type Config struct {
 }
 
 func main() {
+	// sigs := make(chan os.Signal, 1)
+
+	// BEGIN flag
+	var verbose string
+	var dev bool
+	flag.StringVar(&verbose, "verbose", "info", "Level log")
+	flag.BoolVar(&dev, "dev", false, "Enable local develop")
+	flag.Parse()
+	// END flag
+
+	// BEGIN load config
 	content, err := ioutil.ReadFile("config.json")
 	if err != nil {
 		panic(fmt.Sprintf("Problem with config file: %v \n", err))
@@ -39,11 +51,10 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Problem with Unmarshal config file: %v \n", err))
 	}
-
-	fmt.Printf("[DEBUG] %+v\n", config)
+	// END load config
 
 	conf := libvirtApiClient.Config{Username: config.API.User, Password: config.API.Pass, Url: config.API.URL}
-	cc, err := libvirtApiClient.NewClient(conf, &http.Client{Timeout: 10 * time.Second})
+	libvirtApi_client, err := libvirtApiClient.NewClient(conf, &http.Client{Timeout: 10 * time.Second})
 	if err != nil {
 		panic(fmt.Sprintf("Problem with Client libvirtApi: %v \n", err))
 	}
@@ -58,9 +69,20 @@ func main() {
 
 	for {
 
-		all_loadbalancer, err := cc.GetAllLoadBalancers()
+		all_loadbalancer, err := libvirtApi_client.GetAllLoadBalancers()
 		if err != nil {
 			fmt.Printf("ERROR:[GetAllLoadBalancers]:[%+v]", err)
+		}
+
+		if dev == true {
+			for _, ln := range all_loadbalancer {
+				fmt.Printf("[]%+v \n", ln)
+				config, err := haproxyOperator.CreateHaproxyConfig(ln)
+				fmt.Printf("[%+v] [%v]\n", config, err)
+			}
+			fmt.Printf("DEVELOP: BREAK\n")
+			// time.Sleep(time.Second * 10)
+			break
 		}
 
 		exist_LoadBalancer, err := docker.GetContainersByLabels("haproxy")
